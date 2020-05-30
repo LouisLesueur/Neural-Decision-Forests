@@ -1,10 +1,10 @@
 batch_size:        500
 feat_dropout:      0.3
-n_tree:            3
+n_tree:            1
 tree_depth:        10
 n_class:           10
 tree_feature_rate: 0.5
-lr:                0.1
+lr:                0.8
 gpuid:             0
 epochs:            10
 report_every:      10
