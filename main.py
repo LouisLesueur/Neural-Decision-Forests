@@ -8,7 +8,7 @@ import yaml
 with open("config.yaml") as file:
     params = yaml.safe_load(file)
 opt = Namespace(**params)
-opt.cuda = opt.gpuid and opt.gpuid >= 0
+opt.cuda = opt.gpuid >= 0
 
 # id of the current test
 if len(os.listdir('results')) >= 1:

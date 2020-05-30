@@ -83,7 +83,7 @@ def train(model, optim, db, opt):
                         mu_batches.append(mu)
                     for _ in range(20):
                         new_pi = torch.zeros((tree.n_leaf, tree.n_class))  # Tensor [n_leaf,n_class]
-                        if cuda:
+                        if opt.cuda:
                             new_pi = new_pi.cuda()
                         for mu, target in zip(mu_batches, target_batches):
                             pi = tree.get_pi()  # [n_leaf,n_class]
@@ -111,10 +111,10 @@ def train(model, optim, db, opt):
 
         # Update \Theta
         model.train()
-        train_loader = torch.utils.data.DataLoader(db['train'], batch_size=batch_size, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(db['train'], batch_size=opt.batch_size, shuffle=True)
         inter_loss = []
         for batch_idx, (data, target) in enumerate(train_loader):
-            if cuda:
+            if opt.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data), Variable(target)
             optim.zero_grad()
@@ -134,10 +134,10 @@ def train(model, optim, db, opt):
         model.eval()
         test_loss = 0
         correct = 0
-        test_loader = torch.utils.data.DataLoader(db['eval'], batch_size=batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(db['eval'], batch_size=opt.batch_size, shuffle=True)
         with torch.no_grad():
             for data, target in test_loader:
-                if cuda:
+                if opt.cuda:
                     data, target = data.cuda(), target.cuda()
                 data, target = Variable(data), Variable(target)
                 output = model(data)
