@@ -10,6 +10,9 @@ with open("config.yaml") as file:
 opt = Namespace(**params)
 opt.cuda = opt.gpuid >= 0
 
+if not 'results' in os.listdir():
+    os.mkdir('results')
+
 # id of the current test
 if len(os.listdir('results')) >= 1:
     run_id = np.sort(np.array(os.listdir('results')).astype(int))[-1]+1
