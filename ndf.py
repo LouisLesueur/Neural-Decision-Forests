@@ -33,49 +33,13 @@ class MNISTFeatureLayer(nn.Sequential):
         else:
             return 128*3*3
 
-class UCIAdultFeatureLayer(nn.Sequential):
-    def __init__(self,dropout_rate=0.,shallow=True):
-        super(UCIAdultFeatureLayer, self).__init__()
-        self.shallow = shallow
-        if shallow:
-            self.add_module('linear', nn.Linear(113, 1024))
-        else:
-            raise  NotImplementedError
-
-    def get_out_feature_size(self):
-        return 1024
-
-class UCILetterFeatureLayer(nn.Sequential):
-    def __init__(self,dropout_rate=0.,shallow=True):
-        super(UCILetterFeatureLayer, self).__init__()
-        self.shallow = shallow
-        if shallow:
-            self.add_module('linear', nn.Linear(16, 1024))
-        else:
-            raise  NotImplementedError
-
-    def get_out_feature_size(self):
-        return 1024
-
-class UCIYeastFeatureLayer(nn.Sequential):
-    def __init__(self,dropout_rate=0.,shallow=True):
-        super(UCIYeastFeatureLayer, self).__init__()
-        self.shallow = shallow
-        if shallow:
-            self.add_module('linear', nn.Linear(8, 1024))
-        else:
-            raise  NotImplementedError
-
-    def get_out_feature_size(self):
-        return 1024
 
 class Tree(nn.Module):
-    def __init__(self,depth,n_in_feature,used_feature_rate,n_class, jointly_training=True):
+    def __init__(self,depth,n_in_feature,used_feature_rate,n_class):
         super(Tree, self).__init__()
         self.depth = depth
         self.n_leaf = 2 ** depth
         self.n_class = n_class
-        self.jointly_training = jointly_training
 
         # used features in this tree
         n_used_feature = int(n_in_feature*used_feature_rate)
@@ -84,12 +48,8 @@ class Tree(nn.Module):
         self.feature_mask = onehot[using_idx].T
         self.feature_mask = Parameter(torch.from_numpy(self.feature_mask).type(torch.FloatTensor),requires_grad=False)
         # leaf label distribution
-        if jointly_training:
-            self.pi = np.random.rand(self.n_leaf,n_class)
-            self.pi = Parameter(torch.from_numpy(self.pi).type(torch.FloatTensor),requires_grad=True)
-        else:
-            self.pi = np.ones((self.n_leaf, n_class)) / n_class
-            self.pi = Parameter(torch.from_numpy(self.pi).type(torch.FloatTensor), requires_grad=False)
+        self.pi = np.ones((self.n_leaf, n_class)) / n_class
+        self.pi = Parameter(torch.from_numpy(self.pi).type(torch.FloatTensor), requires_grad=False)
 
         # decision
         self.decision = nn.Sequential(OrderedDict([
@@ -130,10 +90,7 @@ class Tree(nn.Module):
         return mu
 
     def get_pi(self):
-        if self.jointly_training:
-            return F.softmax(self.pi,dim=-1)
-        else:
-            return self.pi
+        return self.pi
 
     def cal_prob(self,mu,pi):
         """
@@ -151,12 +108,12 @@ class Tree(nn.Module):
 
 
 class Forest(nn.Module):
-    def __init__(self,n_tree,tree_depth,n_in_feature,tree_feature_rate,n_class,jointly_training):
+    def __init__(self,n_tree,tree_depth,n_in_feature,tree_feature_rate,n_class):
         super(Forest, self).__init__()
         self.trees = nn.ModuleList()
         self.n_tree  = n_tree
         for _ in range(n_tree):
-            tree = Tree(tree_depth,n_in_feature,tree_feature_rate,n_class,jointly_training)
+            tree = Tree(tree_depth,n_in_feature,tree_feature_rate,n_class)
             self.trees.append(tree)
 
     def forward(self,x):
@@ -169,7 +126,6 @@ class Forest(nn.Module):
         prob = torch.sum(probs,dim=2)/self.n_tree
 
         return prob
-
 
 
 

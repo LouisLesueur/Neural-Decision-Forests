@@ -33,8 +33,7 @@ def prepare_model(opt):
             tree_depth        = opt.tree_depth,
             n_in_feature      = feat_layer.get_out_feature_size(),
             tree_feature_rate = opt.tree_feature_rate,
-            n_class           = opt.n_class,
-            jointly_training  = opt.jointly_training)
+            n_class           = opt.n_class)
     model = ndf.NeuralDecisionForest(feat_layer, forest)
 
     if opt.cuda:
@@ -47,7 +46,7 @@ def prepare_model(opt):
 
 def prepare_optim(model, opt):
     params = [p for p in model.parameters() if p.requires_grad]
-    return torch.optim.Adam(params, lr=opt.lr, weight_decay=1e-5)
+    return torch.optim.SGD(params, lr=opt.lr, weight_decay=1e-5)
 
 
 def train(model, optim, db, opt):
@@ -57,57 +56,52 @@ def train(model, optim, db, opt):
 
     for epoch in range(1, opt.epochs + 1):
         # Update \Pi
-        if not opt.jointly_training:
-            print("Epoch %d : Two Stage Learing - Update PI" % (epoch))
-            # prepare feats
-            cls_onehot = torch.eye(opt.n_class)
-            feat_batches = []
-            target_batches = []
-            train_loader = torch.utils.data.DataLoader(db['train'], batch_size=opt.batch_size, shuffle=True)
-            with torch.no_grad():
-                for batch_idx, (data, target) in enumerate(train_loader):
+        print("Epoch %d : Two Stage Learing - Update PI" % (epoch))
+        # prepare feats
+        cls_onehot = torch.eye(opt.n_class)
+        feat_batches = []
+        target_batches = []
+        train_loader = torch.utils.data.DataLoader(db['train'], batch_size=opt.batch_size, shuffle=True)
+        with torch.no_grad():
+            for batch_idx, (data, target) in enumerate(train_loader):
+                if opt.cuda:
+                    data, target, cls_onehot = data.cuda(), target.cuda(), cls_onehot.cuda()
+                data = Variable(data)
+                # Get feats
+                feats = model.feature_layer(data)
+                feats = feats.view(feats.size()[0], -1)
+                feat_batches.append(feats)
+                target_batches.append(cls_onehot[target])
+
+            # Update \Pi for each tree
+            for tree in model.forest.trees:
+                mu_batches = []
+                for feats in feat_batches:
+                    mu = tree(feats)  # [batch_size,n_leaf]
+                    mu_batches.append(mu)
+                for _ in range(20):
+                    new_pi = torch.zeros((tree.n_leaf, tree.n_class))  # Tensor [n_leaf,n_class]
                     if opt.cuda:
-                        data, target, cls_onehot = data.cuda(), target.cuda(), cls_onehot.cuda()
-                    data = Variable(data)
-                    # Get feats
-                    feats = model.feature_layer(data)
-                    feats = feats.view(feats.size()[0], -1)
-                    feat_batches.append(feats)
-                    target_batches.append(cls_onehot[target])
+                        new_pi = new_pi.cuda()
+                    for mu, target in zip(mu_batches, target_batches):
+                        pi = tree.get_pi()  # [n_leaf,n_class]
+                        prob = tree.cal_prob(mu, pi)  # [batch_size,n_class]
 
-                # Update \Pi for each tree
-                for tree in model.forest.trees:
-                    mu_batches = []
-                    for feats in feat_batches:
-                        mu = tree(feats)  # [batch_size,n_leaf]
-                        mu_batches.append(mu)
-                    for _ in range(20):
-                        new_pi = torch.zeros((tree.n_leaf, tree.n_class))  # Tensor [n_leaf,n_class]
-                        if opt.cuda:
-                            new_pi = new_pi.cuda()
-                        for mu, target in zip(mu_batches, target_batches):
-                            pi = tree.get_pi()  # [n_leaf,n_class]
-                            prob = tree.cal_prob(mu, pi)  # [batch_size,n_class]
+                        # Variable to Tensor
+                        pi = pi.data
+                        prob = prob.data
+                        mu = mu.data
 
-                            # Variable to Tensor
-                            pi = pi.data
-                            prob = prob.data
-                            mu = mu.data
+                        _target = target.unsqueeze(1)  # [batch_size,1,n_class]
+                        _pi = pi.unsqueeze(0)  # [1,n_leaf,n_class]
+                        _mu = mu.unsqueeze(2)  # [batch_size,n_leaf,1]
+                        _prob = torch.clamp(prob.unsqueeze(1), min=1e-6, max=1.)  # [batch_size,1,n_class]
 
-                            _target = target.unsqueeze(1)  # [batch_size,1,n_class]
-                            _pi = pi.unsqueeze(0)  # [1,n_leaf,n_class]
-                            _mu = mu.unsqueeze(2)  # [batch_size,n_leaf,1]
-                            _prob = torch.clamp(prob.unsqueeze(1), min=1e-6, max=1.)  # [batch_size,1,n_class]
+                        _new_pi = torch.mul(torch.mul(_target, _pi), _mu) / _prob  # [batch_size,n_leaf,n_class]
+                        new_pi += torch.sum(_new_pi, dim=0)
 
-                            _new_pi = torch.mul(torch.mul(_target, _pi), _mu) / _prob  # [batch_size,n_leaf,n_class]
-                            new_pi += torch.sum(_new_pi, dim=0)
-                        # test
-                        # import numpy as np
-                        # if np.any(np.isnan(new_pi.cpu().numpy())):
-                        #    print(new_pi)
-                        # test
-                        new_pi = F.softmax(Variable(new_pi), dim=1).data
-                        tree.update_pi(new_pi)
+                    new_pi = F.softmax(Variable(new_pi), dim=1).data
+                    tree.update_pi(new_pi)
 
         # Update \Theta
         model.train()
