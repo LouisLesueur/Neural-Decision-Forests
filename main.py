@@ -31,7 +31,7 @@ optim = prepare_optim(model, opt)
 train_Loss, test_Loss, test_Acc = train(model, optim, db, opt)
 
 #saving
-with open(f"{path}params.txt") as file:
+with open(f"{path}params.yaml") as file:
     yaml.safe_dump(params, file)
 np.savetxt(path + 'train_Loss.txt', train_Loss, fmt='%.2f')
 np.savetxt(path + 'test_Loss.txt',  test_Loss,  fmt='%.2f')
