@@ -1,0 +1,11 @@
+batch_size:        500.00
+feat_dropout:      0.30
+n_tree:            3.00
+tree_depth:        10.00
+n_class:           10.00
+tree_feature_rate: 0.50
+lr:                0.00
+gpuid:             0.00
+jointly_training:  0.00
+epochs:            10.00
+report_every:      10.00

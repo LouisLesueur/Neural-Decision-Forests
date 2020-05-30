@@ -14,7 +14,7 @@ train_Loss = np.loadtxt(path + '/train_Loss.txt')
 test_Loss = np.loadtxt(path + '/test_Loss.txt')
 test_Acc = np.loadtxt(path + '/test_Acc.txt')
 
-message = f"{opt.n_trees} trees of depth: {opt.tree_depth} and a batch size of {opt.batch_size}"
+message = f"{opt.n_tree} trees of depth: {opt.tree_depth} and a batch size of {opt.batch_size}"
 
 plt.figure()
 plt.plot(train_Loss, label = 'train loss')
