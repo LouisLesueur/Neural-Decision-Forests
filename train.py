@@ -1,6 +1,6 @@
 import argparse
 import logging
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision
@@ -47,6 +47,10 @@ def prepare_optim(model, lr):
 
 
 def train(model, optim, db, epochs, jointly_training, n_class, batch_size, cuda, report_every):
+    train_Loss = []
+    test_Loss = []
+    test_Acc = []
+
     for epoch in range(1, epochs + 1):
         # Update \Pi
         if not jointly_training:
@@ -104,6 +108,7 @@ def train(model, optim, db, epochs, jointly_training, n_class, batch_size, cuda,
         # Update \Theta
         model.train()
         train_loader = torch.utils.data.DataLoader(db['train'], batch_size=batch_size, shuffle=True)
+        inter_loss = []
         for batch_idx, (data, target) in enumerate(train_loader):
             if cuda:
                 data, target = data.cuda(), target.cuda()
@@ -119,6 +124,7 @@ def train(model, optim, db, epochs, jointly_training, n_class, batch_size, cuda,
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data), len(train_loader.dataset),
                            100. * batch_idx / len(train_loader), loss.item()))
+                inter_loss.append(loss.item())
 
         # Eval
         model.eval()
@@ -139,3 +145,9 @@ def train(model, optim, db, epochs, jointly_training, n_class, batch_size, cuda,
             print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.6f})\n'.format(
                 test_loss, correct, len(test_loader.dataset),
                 correct / len(test_loader.dataset)))
+
+        train_Loss.append(np.mean(np.array(inter_loss)))
+        test_Loss.append(test_loss)
+        test_Acc.append(float(correct) / float(len(test_loader.dataset)))
+
+    return train_Loss, test_Loss, test_Acc
