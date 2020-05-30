@@ -25,15 +25,19 @@ def prepare_db():
     return {'train': train_dataset, 'eval': eval_dataset}
 
 
-def prepare_model(feat_dropout, n_tree, tree_depth, tree_feature_rate, n_class, jointly_training, cuda):
-    feat_layer = ndf.MNISTFeatureLayer(feat_dropout)
+def prepare_model(opt):
+    feat_layer = ndf.MNISTFeatureLayer(opt.feat_dropout)
 
-    forest = ndf.Forest(n_tree=n_tree, tree_depth=tree_depth, n_in_feature=feat_layer.get_out_feature_size(),
-                        tree_feature_rate=tree_feature_rate, n_class=n_class,
-                        jointly_training=jointly_training)
+    forest = ndf.Forest(
+            n_tree            = opt.n_tree,
+            tree_depth        = opt.tree_depth,
+            n_in_feature      = feat_layer.get_out_feature_size(),
+            tree_feature_rate = opt.tree_feature_rate,
+            n_class           = opt.n_class,
+            jointly_training  = opt.jointly_training)
     model = ndf.NeuralDecisionForest(feat_layer, forest)
 
-    if cuda:
+    if opt.cuda:
         model = model.cuda()
     else:
         model = model.cpu()
@@ -41,28 +45,28 @@ def prepare_model(feat_dropout, n_tree, tree_depth, tree_feature_rate, n_class, 
     return model
 
 
-def prepare_optim(model, lr):
+def prepare_optim(model, opt):
     params = [p for p in model.parameters() if p.requires_grad]
-    return torch.optim.Adam(params, lr=lr, weight_decay=1e-5)
+    return torch.optim.Adam(params, lr=opt.lr, weight_decay=1e-5)
 
 
-def train(model, optim, db, epochs, jointly_training, n_class, batch_size, cuda, report_every):
+def train(model, optim, db, opt):
     train_Loss = []
     test_Loss = []
     test_Acc = []
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, opt.epochs + 1):
         # Update \Pi
-        if not jointly_training:
+        if not opt.jointly_training:
             print("Epoch %d : Two Stage Learing - Update PI" % (epoch))
             # prepare feats
-            cls_onehot = torch.eye(n_class)
+            cls_onehot = torch.eye(opt.n_class)
             feat_batches = []
             target_batches = []
-            train_loader = torch.utils.data.DataLoader(db['train'], batch_size=batch_size, shuffle=True)
+            train_loader = torch.utils.data.DataLoader(db['train'], batch_size=opt.batch_size, shuffle=True)
             with torch.no_grad():
                 for batch_idx, (data, target) in enumerate(train_loader):
-                    if cuda:
+                    if opt.cuda:
                         data, target, cls_onehot = data.cuda(), target.cuda(), cls_onehot.cuda()
                     data = Variable(data)
                     # Get feats
@@ -120,7 +124,7 @@ def train(model, optim, db, epochs, jointly_training, n_class, batch_size, cuda,
             # torch.nn.utils.clip_grad_norm([ p for p in model.parameters() if p.requires_grad],
             #                              max_norm=5)
             optim.step()
-            if batch_idx % report_every == 0:
+            if batch_idx % opt.report_every == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data), len(train_loader.dataset),
                            100. * batch_idx / len(train_loader), loss.item()))
