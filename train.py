@@ -39,7 +39,7 @@ def prepare_model(opt):
 
 def prepare_optim(model, opt):
     params = [p for p in model.parameters() if p.requires_grad]
-    return torch.optim.SGD(params, lr=opt.lr, weight_decay=1e-5)
+    return torch.optim.SGD(params, lr=opt.lr)
 
 
 def train_pi(model, database, opt, epoch):
